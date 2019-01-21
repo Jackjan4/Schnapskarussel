@@ -1,7 +1,7 @@
 /**
    Schnapskarussel
-   v1.0.9
-   16.01.2019 23:20
+   v1.1.0
+   21.01.2019 20:30
    1.0.1 : Bugfix, dass nach dem auffüllen frei gedreht wird
    1.0.2 : Unendlich warmup gefixt + Stepper step in eigene Methode
    1.0.3 : Unterstützung dritter Button for Cooldown + Cooldown code + Pumpenmethode nimmt nun Richtung an
@@ -12,10 +12,12 @@
    1.0.7 : Automatische Stepberechnungen je nach Stepstyle + Motor bremsen, damit er nicht weiterdreht nach dem rotieren
    1.0.8 : Game mode hinzugefügt
    1.0.9 : Cooldown entfernt, da Pumpe nicht rückwärts laufen kann
+   1.1.0 : Neopixel eingefügt + GLAS_STEP_OFFSET kann nun auch negativ sein (somit kann der offset auch rückwärts erfolgen)
 */
 
 
 #include <AFMotor.h>
+#include <Adafruit_NeoPixel.h>
 
 
 
@@ -54,23 +56,24 @@ uint8_t currentState;
 
 
 // Schritte die noch gemacht werden sollen, damit Glas korrekt unterm Schlauch steht
-const uint8_t GLAS_STEP_OFFSET = 5;
+const int8_t GLAS_STEP_OFFSET = 5;
 
 // Schritte, die für eine komplette Umdrehung nötig sind
 const int FULL_ROTATE_STEPS = 200;
-int neededSteps;
-int stepsDone;
+uint16_t neededSteps;
+uint16_t stepsDone;
 
 
 // Pin-Belegungen
-const int PIN_BUTTON_START = A0;
-const int PIN_BUTTON_WARMUP = A1;
+const uint8_t PIN_BUTTON_START = A0;
+const uint8_t PIN_BUTTON_WARMUP = A1;
 const int PIN_BUTTON_GAME = A3;
 const int PIN_SENSOR = A5;
 const int PIN_STATUS_LED = 2;
+const int PIN_NEOPIXEL = A4;
 
 
-// Gibt die Größe des Zufallsbereich an, so größer die Zahl, desto unwahrscheinlicher ist es im GameMode, dass ein Glas befüllt wird =>    Wahrscheinlichkeit =  1 / RANDOM_SIZE
+// Gibt die Größe des Zufallsbereich an, so größer die Zahl, desto unwahrscheinlicher ist es im GameMode, dass ein Glas befüllt wird =>    Wahrscheinlichkeit =  1 / (RANDOM_SIZE + 1)
 const uint8_t RANDOM_SIZE = 3;
 
 // Zeit in Millisekunden wie schnell die LED blinkt
@@ -83,6 +86,7 @@ uint8_t currentLedState;
 AF_DCMotor pumpe(1); // M1
 AF_Stepper stepper(FULL_ROTATE_STEPS, 2); // M3 & M4
 
+Adafruit_NeoPixel neopixel = Adafruit_NeoPixel(12, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 
 
 void setup() {
@@ -184,6 +188,8 @@ void loop() {
         if (GLAS_STEP_OFFSET > 0) {
           // evtl nötig, damit glas gerade unterm Schlauch
           stepper.step(GLAS_STEP_OFFSET, FORWARD, STEPSTYLE);
+        } else if (GLAS_STEP_OFFSET < 0) {
+          stepper.step(-GLAS_STEP_OFFSET, BACKWARD, STEPSTYLE);
         }
 
         // GameMode code
@@ -271,9 +277,8 @@ void doRotateStep() {
    Gibt true zurück, wenn Glas vor dem Sensor steht
    Ansonsten false
 */
-bool istGlasVorSensor() {
-  uint8_t val = digitalRead(PIN_SENSOR);
-  return (val == LOW) ? true : false;
+inline bool istGlasVorSensor() {
+  return (digitalRead(PIN_SENSOR) == LOW) ? true : false;
 }
 
 
@@ -301,8 +306,7 @@ void runPumpe(int mill, int direction) {
 /**
   Gibt true zurück, wenn der angegebene Button (angeschlossen an dem Pin) gedrückt ist
 */
-bool isButtonPressed(int buttonPin) {
-
+bool isButtonPressed(uint8_t buttonPin) {
   uint8_t val = digitalRead(buttonPin);
   return (val == LOW) ? true : false;
 
@@ -316,8 +320,8 @@ bool isButtonPressed(int buttonPin) {
 void goIdle() {
   isGameModeActive = false;
   currentState = STATE_IDLE;
-  digitalWrite(PIN_STATUS_LED, HIGH);
   currentLedState = HIGH;
+  digitalWrite(PIN_STATUS_LED, currentLedState);
   stepsDone = 0;
 }
 
@@ -354,6 +358,7 @@ void activateGameMode() {
 
 /**
  * Lässt die Ring-LED blinken für einen Effekt.
+ * Blockiert, bis Lichteffekte fertig
  */
 void ledParty(bool willGlassFill) {
   
