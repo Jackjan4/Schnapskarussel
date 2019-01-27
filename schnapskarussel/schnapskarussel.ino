@@ -1,7 +1,7 @@
 /**
    Schnapskarussel
-   v1.1.0
-   21.01.2019 20:30
+   v1.1.1
+   27.01.2019 27.01.2019
    1.0.1 : Bugfix, dass nach dem auffüllen frei gedreht wird
    1.0.2 : Unendlich warmup gefixt + Stepper step in eigene Methode
    1.0.3 : Unterstützung dritter Button for Cooldown + Cooldown code + Pumpenmethode nimmt nun Richtung an
@@ -13,11 +13,21 @@
    1.0.8 : Game mode hinzugefügt
    1.0.9 : Cooldown entfernt, da Pumpe nicht rückwärts laufen kann
    1.1.0 : Neopixel eingefügt + GLAS_STEP_OFFSET kann nun auch negativ sein (somit kann der offset auch rückwärts erfolgen)
+   1.1.1 : Übersetzungsvariable hinzugefügt + DEBUG precompiler code
 */
 
 
 #include <AFMotor.h>
 #include <Adafruit_NeoPixel.h>
+
+// Debug precompiler code
+#define DEBUG
+#ifdef DEBUG
+#define DEBUG_PRINT(x)  Serial.println(x)
+#else
+#define DEBUG_PRINT(x)
+#endif
+
 
 
 
@@ -46,22 +56,24 @@ const int WARMUPTIME = 2000;
 
 // ======== ZUSTÄNDE =========
 
-
 enum State { STATE_IDLE = 1, STATE_FILL = 2, STATE_ROTATE = 4, STATE_INIT = 8, STATE_ROTATE_INIT = 16};
 boolean isGameModeActive;
-
 
 // Derzeitiger Zustand
 uint8_t currentState;
 
 
+
 // Schritte die noch gemacht werden sollen, damit Glas korrekt unterm Schlauch steht
 const int8_t GLAS_STEP_OFFSET = 5;
 
-// Schritte, die für eine komplette Umdrehung nötig sind
-const int FULL_ROTATE_STEPS = 200;
+// Übersetzung vom Motor auf das Drehkarussel
+const float TRANSMISSION = 3.0;
+// Schritte, die für eine komplette Umdrehung des Stepper-Motors nötig sind
+const uint16_t FULL_ROTATE_STEPS = 200;
 uint16_t neededSteps;
 uint16_t stepsDone;
+
 
 
 // Pin-Belegungen
@@ -71,6 +83,7 @@ const int PIN_BUTTON_GAME = A3;
 const int PIN_SENSOR = A5;
 const int PIN_STATUS_LED = 2;
 const int PIN_NEOPIXEL = A4;
+
 
 
 // Gibt die Größe des Zufallsbereich an, so größer die Zahl, desto unwahrscheinlicher ist es im GameMode, dass ein Glas befüllt wird =>    Wahrscheinlichkeit =  1 / (RANDOM_SIZE + 1)
@@ -86,15 +99,20 @@ uint8_t currentLedState;
 AF_DCMotor pumpe(1); // M1
 AF_Stepper stepper(FULL_ROTATE_STEPS, 2); // M3 & M4
 
+
+
+// NeoPixel initialisieren
 Adafruit_NeoPixel neopixel = Adafruit_NeoPixel(12, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 
 
+
+// 
 void setup() {
 
   
   // Monitor einschalten
   Serial.begin(9600);
-  Serial.println("Programmstart");
+  DEBUG_PRINT("Programmstart");
 
   // Pins initialisieren
   pinMode(PIN_BUTTON_START, INPUT_PULLUP);
@@ -111,17 +129,19 @@ void setup() {
   switch (STEPSTYLE) {
     case DOUBLE:
     case SINGLE:
-      neededSteps = FULL_ROTATE_STEPS;
+      neededSteps = FULL_ROTATE_STEPS * TRANSMISSION;
       break;
 
     case INTERLEAVE:
-      neededSteps = FULL_ROTATE_STEPS * 2;
+      neededSteps = (FULL_ROTATE_STEPS * 2) * TRANSMISSION;
       break;
 
     case MICROSTEP:
-      neededSteps = FULL_ROTATE_STEPS / 2;
+      neededSteps = (FULL_ROTATE_STEPS / 2) * TRANSMISSION;
       break;
   }
+
+  DEBUG_PRINT(neededSteps);
 
 
   // Beginne mit idle state
@@ -140,14 +160,14 @@ void loop() {
       if (isButtonPressed(PIN_BUTTON_START)) {
         currentState = STATE_ROTATE_INIT;
         isGameModeActive = false;
-        Serial.println("IDLE -> ROTATE_INIT - Start-Button gedrückt");
+        DEBUG_PRINT("IDLE -> ROTATE_INIT - Start-Button gedrückt");
       } else if (isButtonPressed(PIN_BUTTON_WARMUP)) {
         currentState = STATE_INIT;
-        Serial.println("IDLE -> INIT - Warmup-Button gedrückt");
+        DEBUG_PRINT("IDLE -> INIT - Warmup-Button gedrückt");
       } else if (isButtonPressed(PIN_BUTTON_GAME)) {
         currentState = STATE_ROTATE_INIT;
         isGameModeActive = true;
-        Serial.println("IDLE -> ROTATE - Game-Button gedrückt");
+        DEBUG_PRINT("IDLE -> ROTATE - Game-Button gedrückt");
       }
       break;
 
@@ -172,7 +192,7 @@ void loop() {
 
       // Wieder in Rotation wechseln
       currentState = STATE_ROTATE;
-      Serial.println("FILL -> ROTATE - Füllen fertig, drehe weiter");
+      DEBUG_PRINT("FILL -> ROTATE - Füllen fertig, drehe weiter");
       break;
 
 
@@ -205,13 +225,13 @@ void loop() {
 
         // Glas erkannt, also in Füllmodus wechseln
         currentState = STATE_FILL;
-        Serial.println("ROTATE -> FILL - Glas gefunden, füllen");
+        DEBUG_PRINT("ROTATE -> FILL - Glas gefunden, füllen");
       }
 
       // Umdrehung fertig
       if (stepsDone >= neededSteps) {
         
-        Serial.println("ROTATE -> IDLE - Drehung fertig");
+        DEBUG_PRINT("ROTATE -> IDLE - Drehung fertig");
         // Umdrehung fertig, bremsen(also Stepper release) um unnötigen Stromverbrauch & Hitzeentwicklung zu vermeiden
         delay(PUMPE_BREAKTIME);
         stepper.release();
@@ -235,7 +255,7 @@ void loop() {
 
       // State wechseln zu IDLE
       goIdle();
-      Serial.println("WARMUP -> IDLE - Warmup fertig");
+      DEBUG_PRINT("WARMUP -> IDLE - Warmup fertig");
       break;
 
 
@@ -250,7 +270,7 @@ void loop() {
         // Nochmal etwas vordrehen, damit auch ganz sicher nichts mehr vor dem Sensor
         stepper.step(2, FORWARD, STEPSTYLE);
         currentState = STATE_ROTATE;
-        Serial.println("ROTATE_INIT -> ROTATE - init fertig, begin drehen");
+        DEBUG_PRINT("ROTATE_INIT -> ROTATE - init fertig, begin drehen");
       }
       break;
 
