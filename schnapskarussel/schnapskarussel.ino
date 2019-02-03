@@ -1,7 +1,7 @@
 /**
    Schnapskarussel
-   v1.1.1
-   27.01.2019 27.01.2019
+   v1.1.2
+   03.02.2019 22:10
    1.0.1 : Bugfix, dass nach dem auffüllen frei gedreht wird
    1.0.2 : Unendlich warmup gefixt + Stepper step in eigene Methode
    1.0.3 : Unterstützung dritter Button for Cooldown + Cooldown code + Pumpenmethode nimmt nun Richtung an
@@ -14,19 +14,28 @@
    1.0.9 : Cooldown entfernt, da Pumpe nicht rückwärts laufen kann
    1.1.0 : Neopixel eingefügt + GLAS_STEP_OFFSET kann nun auch negativ sein (somit kann der offset auch rückwärts erfolgen)
    1.1.1 : Übersetzungsvariable hinzugefügt + DEBUG precompiler code
+   1.1.2 : Transmission auf 1 + Anpassung an neuen Nema 23 Motor
 */
 
 
-#include <AFMotor.h>
-#include <Adafruit_NeoPixel.h>
-
 // Debug precompiler code
 #define DEBUG
+
+
+
 #ifdef DEBUG
 #define DEBUG_PRINT(x)  Serial.println(x)
 #else
 #define DEBUG_PRINT(x)
 #endif
+
+
+
+
+#include <AFMotor.h>
+#include <Adafruit_NeoPixel.h>
+
+
 
 
 
@@ -68,9 +77,9 @@ uint8_t currentState;
 const int8_t GLAS_STEP_OFFSET = 5;
 
 // Übersetzung vom Motor auf das Drehkarussel
-const float TRANSMISSION = 3.0;
+const float TRANSMISSION = 1.0;
 // Schritte, die für eine komplette Umdrehung des Stepper-Motors nötig sind
-const uint16_t FULL_ROTATE_STEPS = 200;
+const uint16_t FULL_ROTATE_STEPS = 400;
 uint16_t neededSteps;
 uint16_t stepsDone;
 
@@ -89,7 +98,7 @@ const int PIN_NEOPIXEL = A4;
 // Gibt die Größe des Zufallsbereich an, so größer die Zahl, desto unwahrscheinlicher ist es im GameMode, dass ein Glas befüllt wird =>    Wahrscheinlichkeit =  1 / (RANDOM_SIZE + 1)
 const uint8_t RANDOM_SIZE = 3;
 
-// Zeit in Millisekunden wie schnell die LED blinkt
+// Zeit in Millisekunden, wie schnell die LED blinkt
 const uint16_t LED_BLINK_TIME = 255;
 uint8_t currentLedState;
 
@@ -378,7 +387,8 @@ void activateGameMode() {
 
 /**
  * Lässt die Ring-LED blinken für einen Effekt.
- * Blockiert, bis Lichteffekte fertig
+ * Blockiert, bis Lichteffekte fertig.
+ * 3 Umdrehungen Farbe + dunkeldrehen + 3 mal blinken grün/rot
  */
 void ledParty(bool willGlassFill) {
   
