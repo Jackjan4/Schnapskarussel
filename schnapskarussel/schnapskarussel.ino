@@ -1,7 +1,7 @@
 /**
    Schnapskarussel
-   v1.1.2
-   03.02.2019 22:10
+   v1.1.3
+   05.02.2019 02:56
    1.0.1 : Bugfix, dass nach dem auffüllen frei gedreht wird
    1.0.2 : Unendlich warmup gefixt + Stepper step in eigene Methode
    1.0.3 : Unterstützung dritter Button for Cooldown + Cooldown code + Pumpenmethode nimmt nun Richtung an
@@ -15,6 +15,7 @@
    1.1.0 : Neopixel eingefügt + GLAS_STEP_OFFSET kann nun auch negativ sein (somit kann der offset auch rückwärts erfolgen)
    1.1.1 : Übersetzungsvariable hinzugefügt + DEBUG precompiler code
    1.1.2 : Transmission auf 1 + Anpassung an neuen Nema 23 Motor
+   1.1.3 : Optimierungen der Sketch size
 */
 
 
@@ -24,9 +25,9 @@
 
 
 #ifdef DEBUG
-#define DEBUG_PRINT(x)  Serial.println(x)
+#define DEBUG_PRINTLN(x)  Serial.println(x)
 #else
-#define DEBUG_PRINT(x)
+#define DEBUG_PRINTLN(x)
 #endif
 
 
@@ -40,32 +41,32 @@
 
 
 
-// Pumpgeschweindigkeit der Wasserpumpe
+// Pumpgeschweindigkeit der Wasserpumpe -> Max 255
 const uint8_t SPEED_PUMPE = 100;
 
 
-// Drehgeschwindigkeit des Steppers
+// Drehgeschwindigkeit des Steppers in RPM
 const uint8_t SPEED_STEPPER = 10;
 
 // Art der Steps: SINGLE, DOUBLE, INTERLEAVE, MICROSTEP
 const uint8_t STEPSTYLE = DOUBLE;
 
-// Wartezeit zum abtropfen, bevor weitergedreht wird
+// Wartezeit zum abtropfen, bevor weitergedreht wird, in Millisekunden
 const uint8_t FILL_WAITTIME = 100;
 
-// Zeit die gewartet werden soll, um den Teller am Ende der Umdrehung zu beruhigen
-const int PUMPE_BREAKTIME = 400;
+// Zeit die gewartet werden soll, um den Teller am Ende der Umdrehung zu beruhigen, in MilliSekunden
+const uint16_t PUMPE_BREAKTIME = 400;
 
 // Zeit in Millisekunden, wielange die Pumpe zum befüllen laufen soll
-const int FILLTIME = 200;
+const uint16_t FILLTIME = 200;
 
 // Zeit in Millisekunden, wielange die Pumpe sich volllaufen soll
-const int WARMUPTIME = 2000;
+const uint16_t WARMUPTIME = 2000;
 
 
 // ======== ZUSTÄNDE =========
 
-enum State { STATE_IDLE = 1, STATE_FILL = 2, STATE_ROTATE = 4, STATE_INIT = 8, STATE_ROTATE_INIT = 16};
+enum State { STATE_IDLE = 0, STATE_FILL = 1, STATE_ROTATE = 2, STATE_INIT = 3, STATE_ROTATE_INIT = 4};
 boolean isGameModeActive;
 
 // Derzeitiger Zustand
@@ -121,7 +122,7 @@ void setup() {
   
   // Monitor einschalten
   Serial.begin(9600);
-  DEBUG_PRINT("Programmstart");
+  DEBUG_PRINTLN("Start");
 
   // Pins initialisieren
   pinMode(PIN_BUTTON_START, INPUT_PULLUP);
@@ -150,7 +151,7 @@ void setup() {
       break;
   }
 
-  DEBUG_PRINT(neededSteps);
+  DEBUG_PRINTLN(neededSteps);
 
 
   // Beginne mit idle state
@@ -169,14 +170,14 @@ void loop() {
       if (isButtonPressed(PIN_BUTTON_START)) {
         currentState = STATE_ROTATE_INIT;
         isGameModeActive = false;
-        DEBUG_PRINT("IDLE -> ROTATE_INIT - Start-Button gedrückt");
+        DEBUG_PRINTLN("IDLE -> ROTATE_INIT - Start-Button gedrückt");
       } else if (isButtonPressed(PIN_BUTTON_WARMUP)) {
         currentState = STATE_INIT;
-        DEBUG_PRINT("IDLE -> INIT - Warmup-Button gedrückt");
+        DEBUG_PRINTLN("IDLE -> INIT - Warmup-Button gedrückt");
       } else if (isButtonPressed(PIN_BUTTON_GAME)) {
         currentState = STATE_ROTATE_INIT;
         isGameModeActive = true;
-        DEBUG_PRINT("IDLE -> ROTATE - Game-Button gedrückt");
+        DEBUG_PRINTLN("IDLE -> ROTATE - Game-Button gedrückt");
       }
       break;
 
@@ -201,7 +202,7 @@ void loop() {
 
       // Wieder in Rotation wechseln
       currentState = STATE_ROTATE;
-      DEBUG_PRINT("FILL -> ROTATE - Füllen fertig, drehe weiter");
+      DEBUG_PRINTLN("FILL -> ROTATE - Füllen fertig, drehe weiter");
       break;
 
 
@@ -213,13 +214,14 @@ void loop() {
       blinkLed();
       if (istGlasVorSensor()) {
 
-        
+
+        // evtl nötig, damit glas gerade unterm Schlauch
         if (GLAS_STEP_OFFSET > 0) {
-          // evtl nötig, damit glas gerade unterm Schlauch
           stepper.step(GLAS_STEP_OFFSET, FORWARD, STEPSTYLE);
         } else if (GLAS_STEP_OFFSET < 0) {
           stepper.step(-GLAS_STEP_OFFSET, BACKWARD, STEPSTYLE);
         }
+
 
         // GameMode code
         if (isGameModeActive) {
@@ -234,14 +236,14 @@ void loop() {
 
         // Glas erkannt, also in Füllmodus wechseln
         currentState = STATE_FILL;
-        DEBUG_PRINT("ROTATE -> FILL - Glas gefunden, füllen");
+        DEBUG_PRINTLN("ROTATE -> FILL - Glas gefunden, füllen");
       }
 
       // Umdrehung fertig
       if (stepsDone >= neededSteps) {
         
-        DEBUG_PRINT("ROTATE -> IDLE - Drehung fertig");
-        // Umdrehung fertig, bremsen(also Stepper release) um unnötigen Stromverbrauch & Hitzeentwicklung zu vermeiden
+        DEBUG_PRINTLN("ROTATE -> IDLE - Drehung fertig");
+        // Umdrehung fertig, bremsen und dann Stepper release, um unnötigen Stromverbrauch & Hitzeentwicklung zu vermeiden
         delay(PUMPE_BREAKTIME);
         stepper.release();
         // State wechseln zu IDLE
@@ -264,7 +266,7 @@ void loop() {
 
       // State wechseln zu IDLE
       goIdle();
-      DEBUG_PRINT("WARMUP -> IDLE - Warmup fertig");
+      DEBUG_PRINTLN("WARMUP -> IDLE - Warmup fertig");
       break;
 
 
@@ -279,7 +281,7 @@ void loop() {
         // Nochmal etwas vordrehen, damit auch ganz sicher nichts mehr vor dem Sensor
         stepper.step(2, FORWARD, STEPSTYLE);
         currentState = STATE_ROTATE;
-        DEBUG_PRINT("ROTATE_INIT -> ROTATE - init fertig, begin drehen");
+        DEBUG_PRINTLN("ROTATE_INIT -> ROTATE - init fertig, begin drehen");
       }
       break;
 
@@ -315,7 +317,7 @@ inline bool istGlasVorSensor() {
 /**
    Betreibt die Pumpe für die angegebenen Millisekunden
 */
-void runPumpe(int mill, int direction) {
+void runPumpe(uint16_t mill, uint8_t direction) {
 
   unsigned long start = millis();
 
@@ -335,9 +337,8 @@ void runPumpe(int mill, int direction) {
 /**
   Gibt true zurück, wenn der angegebene Button (angeschlossen an dem Pin) gedrückt ist
 */
-bool isButtonPressed(uint8_t buttonPin) {
-  uint8_t val = digitalRead(buttonPin);
-  return (val == LOW) ? true : false;
+inline bool isButtonPressed(uint8_t buttonPin) {
+  return (digitalRead(buttonPin) == LOW) ? true : false;
 
 }
 
@@ -367,10 +368,9 @@ void blinkLed() {
   unsigned long curMillis = millis();
 
   if (curMillis > ledStateMillis + LED_BLINK_TIME) {
-    uint8_t newState = (currentLedState == HIGH) ? LOW : HIGH;
+    currentLedState ^= 1; // XOR mit 1 => Toggle state
     // Wechsel LED status
-    digitalWrite(PIN_STATUS_LED, newState);
-    currentLedState = newState;
+    digitalWrite(PIN_STATUS_LED, currentLedState);
     ledStateMillis = curMillis;
   }
 }
