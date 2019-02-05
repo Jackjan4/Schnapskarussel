@@ -1,7 +1,7 @@
 /**
    Schnapskarussel
-   v1.1.3
-   05.02.2019 02:56
+   v1.1.4
+   05.02.2019 18:59
    1.0.1 : Bugfix, dass nach dem auffüllen frei gedreht wird
    1.0.2 : Unendlich warmup gefixt + Stepper step in eigene Methode
    1.0.3 : Unterstützung dritter Button for Cooldown + Cooldown code + Pumpenmethode nimmt nun Richtung an
@@ -16,6 +16,7 @@
    1.1.1 : Übersetzungsvariable hinzugefügt + DEBUG precompiler code
    1.1.2 : Transmission auf 1 + Anpassung an neuen Nema 23 Motor
    1.1.3 : Optimierungen am Sketch -> weniger benötigter SRAM & Flash
+   1.1.4 : LedParty der Neopixel funktioniert
 */
 
 
@@ -26,8 +27,10 @@
 
 #ifdef DEBUG
 #define DEBUG_PRINTLN(x)  Serial.println(x)
+#define DEBUG_PRINT(x) Serial.print(x)
 #else
 #define DEBUG_PRINTLN(x)
+#define DEBUG_PRINT(x)
 #endif
 
 
@@ -54,7 +57,7 @@ const uint8_t STEPSTYLE = DOUBLE;
 // Wartezeit zum abtropfen, bevor weitergedreht wird, in Millisekunden
 const uint8_t FILL_WAITTIME = 100;
 
-// Zeit die gewartet werden soll, um den Teller am Ende der Umdrehung zu beruhigen, in MilliSekunden
+// Zeit die gewartet werden soll, um den Teller am Ende der Umdrehung zu beruhigen, in Millisekunden
 const uint16_t PUMPE_BREAKTIME = 400;
 
 // Zeit in Millisekunden, wielange die Pumpe zum befüllen laufen soll
@@ -112,17 +115,19 @@ AF_Stepper stepper(FULL_ROTATE_STEPS, 2); // M3 & M4
 
 
 // NeoPixel initialisieren
-Adafruit_NeoPixel neopixel = Adafruit_NeoPixel(12, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
+const uint8_t NEOPIXEL_COUNT = 12;
+const uint8_t NEOPIXEL_BRIGHTNESS = 100;
+Adafruit_NeoPixel neopixel = Adafruit_NeoPixel(NEOPIXEL_COUNT, PIN_NEOPIXEL, NEO_GRB + NEO_KHZ800);
 
 
 
 //
 void setup() {
 
-
   // Monitor einschalten
   Serial.begin(9600);
   DEBUG_PRINTLN("Start");
+
 
   // Pins initialisieren
   pinMode(PIN_BUTTON_START, INPUT_PULLUP);
@@ -131,6 +136,8 @@ void setup() {
   pinMode(PIN_SENSOR, INPUT);
   pinMode(PIN_STATUS_LED, OUTPUT);
 
+
+  // Motorgeschwindigkeiten festlegen
   pumpe.setSpeed(SPEED_PUMPE);
   stepper.setSpeed(SPEED_STEPPER);
 
@@ -150,9 +157,14 @@ void setup() {
       neededSteps = (FULL_ROTATE_STEPS / 2) * TRANSMISSION;
       break;
   }
-
+  DEBUG_PRINT("Benötigte Schritte: ");
   DEBUG_PRINTLN(neededSteps);
 
+
+  // Neopixel aktivieren
+  neopixel.begin();
+  neopixel.setBrightness(NEOPIXEL_BRIGHTNESS);
+  neopixel.show(); // Alle ausschalten
 
   // Beginne mit idle state
   goIdle();
@@ -259,6 +271,8 @@ void loop() {
 
 
 
+
+
     // Code während Warmup
     case STATE_WARMUP:
       blinkLed();
@@ -268,6 +282,8 @@ void loop() {
       goIdle();
       DEBUG_PRINTLN("WARMUP -> IDLE - Warmup fertig");
       break;
+
+
 
 
 
@@ -286,10 +302,6 @@ void loop() {
       break;
 
   }
-
-
-
-
 }
 
 
@@ -392,4 +404,64 @@ void activateGameMode() {
 */
 void ledParty(bool willGlassFill) {
 
+  colorCircle(0, 255, 0);
+  colorCircle(0, 0, 255);
+  colorCircle(255, 0, 0);
+  colorCircle(0, 0, 0);
+  delay(2000);
+
+  //
+  uint32_t color;
+  if (willGlassFill) {
+    color = neopixel.Color(255, 0, 0);
+  } else {
+    color = neopixel.Color(0, 255, 0);
+  }
+
+  neopixelBlink(3, 200, 400, color, true);
+
+}
+
+
+
+/**
+   Macht eine Farbkreis-Animation auf dem Neopixel
+*/
+void colorCircle(uint8_t red, uint8_t green, uint8_t blue) {
+  for (uint8_t i = 0; i < NEOPIXEL_COUNT; i++) {
+    neopixel.setPixelColor(i, red, green, blue);
+    neopixel.show();
+  }
+}
+
+
+
+/**
+   Blinkt das ganze Neopixel in der angegebenen Anzahl, mit der angegeben Farbe, in dem angegebenen delay (in Millisekunden)
+*/
+void neopixelBlink(uint8_t blinkTimes, uint16_t lightDelay, uint16_t darkDelay, uint32_t color, boolean openEnd) {
+
+  for (uint8_t n = 0; n < blinkTimes; n++) {
+    // Setze alle Pixel
+    setAllPixel(color);
+    delay(lightDelay);
+
+    if (n < blinkTimes - 1 || !openEnd) {
+      setAllPixel(0);
+      delay(darkDelay);
+    }
+  }
+}
+
+
+
+
+/**
+   Setzt alle Neopixel auf die gegebene Farbe
+*/
+void setAllPixel(uint32_t color) {
+  for (uint8_t i = 0; i < NEOPIXEL_COUNT; i++) {
+    neopixel.setPixelColor(i, color);
+  }
+  neopixel.show();
 }
