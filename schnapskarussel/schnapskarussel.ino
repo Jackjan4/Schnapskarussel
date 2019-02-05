@@ -15,7 +15,7 @@
    1.1.0 : Neopixel eingefügt + GLAS_STEP_OFFSET kann nun auch negativ sein (somit kann der offset auch rückwärts erfolgen)
    1.1.1 : Übersetzungsvariable hinzugefügt + DEBUG precompiler code
    1.1.2 : Transmission auf 1 + Anpassung an neuen Nema 23 Motor
-   1.1.3 : Optimierungen der Sketch size
+   1.1.3 : Optimierungen am Sketch -> weniger benötigter SRAM & Flash
 */
 
 
@@ -66,7 +66,7 @@ const uint16_t WARMUPTIME = 2000;
 
 // ======== ZUSTÄNDE =========
 
-enum State { STATE_IDLE = 0, STATE_FILL = 1, STATE_ROTATE = 2, STATE_INIT = 3, STATE_ROTATE_INIT = 4};
+enum State { STATE_IDLE, STATE_FILL, STATE_ROTATE, STATE_WARMUP, STATE_ROTATE_INIT};
 boolean isGameModeActive;
 
 // Derzeitiger Zustand
@@ -89,10 +89,10 @@ uint16_t stepsDone;
 // Pin-Belegungen
 const uint8_t PIN_BUTTON_START = A0;
 const uint8_t PIN_BUTTON_WARMUP = A1;
-const int PIN_BUTTON_GAME = A3;
-const int PIN_SENSOR = A5;
-const int PIN_STATUS_LED = 2;
-const int PIN_NEOPIXEL = A4;
+const uint8_t PIN_BUTTON_GAME = A3;
+const uint8_t PIN_SENSOR = A5;
+const uint8_t PIN_STATUS_LED = 2;
+const uint8_t PIN_NEOPIXEL = A4;
 
 
 
@@ -116,10 +116,10 @@ Adafruit_NeoPixel neopixel = Adafruit_NeoPixel(12, PIN_NEOPIXEL, NEO_GRB + NEO_K
 
 
 
-// 
+//
 void setup() {
 
-  
+
   // Monitor einschalten
   Serial.begin(9600);
   DEBUG_PRINTLN("Start");
@@ -172,7 +172,7 @@ void loop() {
         isGameModeActive = false;
         DEBUG_PRINTLN("IDLE -> ROTATE_INIT - Start-Button gedrückt");
       } else if (isButtonPressed(PIN_BUTTON_WARMUP)) {
-        currentState = STATE_INIT;
+        currentState = STATE_WARMUP;
         DEBUG_PRINTLN("IDLE -> INIT - Warmup-Button gedrückt");
       } else if (isButtonPressed(PIN_BUTTON_GAME)) {
         currentState = STATE_ROTATE_INIT;
@@ -241,8 +241,8 @@ void loop() {
 
       // Umdrehung fertig
       if (stepsDone >= neededSteps) {
-        
-        DEBUG_PRINTLN("ROTATE -> IDLE - Drehung fertig");
+
+        DEBUG_PRINTLN("ROTATE -> IDLE - Fertig");
         // Umdrehung fertig, bremsen und dann Stepper release, um unnötigen Stromverbrauch & Hitzeentwicklung zu vermeiden
         delay(PUMPE_BREAKTIME);
         stepper.release();
@@ -250,7 +250,7 @@ void loop() {
         goIdle();
 
       } else {
-         // Weiterdrehen
+        // Weiterdrehen
         doRotateStep();
       }
       break;
@@ -260,7 +260,7 @@ void loop() {
 
 
     // Code während Warmup
-    case STATE_INIT:
+    case STATE_WARMUP:
       blinkLed();
       runPumpe(WARMUPTIME, FORWARD);
 
@@ -281,7 +281,7 @@ void loop() {
         // Nochmal etwas vordrehen, damit auch ganz sicher nichts mehr vor dem Sensor
         stepper.step(2, FORWARD, STEPSTYLE);
         currentState = STATE_ROTATE;
-        DEBUG_PRINTLN("ROTATE_INIT -> ROTATE - init fertig, begin drehen");
+        DEBUG_PRINTLN("ROTATE_INIT -> ROTATE - init fertig, nun drehen");
       }
       break;
 
@@ -363,9 +363,9 @@ void goIdle() {
 void blinkLed() {
 
   // Static, sodass diese Funktion ihren State speichert -> Coroutine
-  static unsigned long ledStateMillis;
+  static uint32_t ledStateMillis;
 
-  unsigned long curMillis = millis();
+  uint32_t curMillis = millis();
 
   if (curMillis > ledStateMillis + LED_BLINK_TIME) {
     currentLedState ^= 1; // XOR mit 1 => Toggle state
@@ -386,10 +386,10 @@ void activateGameMode() {
 
 
 /**
- * Lässt die Ring-LED blinken für einen Effekt.
- * Blockiert, bis Lichteffekte fertig.
- * 3 Umdrehungen Farbe + dunkeldrehen + 3 mal blinken grün/rot
- */
+   Lässt die Ring-LED blinken für einen Effekt.
+   Blockiert, bis Lichteffekte fertig.
+   3 Umdrehungen Farbe + dunkeldrehen + 3 mal blinken grün/rot
+*/
 void ledParty(bool willGlassFill) {
-  
+
 }
