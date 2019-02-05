@@ -12,4 +12,5 @@ Changelog im Sketch enthalten
 **Verwendete Libraries:**
 
 [Adafruit Neopixel](https://github.com/adafruit/Adafruit_NeoPixel)
+
 [Adafruit MotorShield v1](https://github.com/adafruit/Adafruit-Motor-Shield-library)
