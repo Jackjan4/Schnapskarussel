@@ -1,7 +1,7 @@
 /**
    Schnapskarussel
-   v1.1.4
-   05.02.2019 18:59
+   v1.1.5
+   10.02.2019 17.48
    1.0.1 : Bugfix, dass nach dem auffüllen frei gedreht wird
    1.0.2 : Unendlich warmup gefixt + Stepper step in eigene Methode
    1.0.3 : Unterstützung dritter Button for Cooldown + Cooldown code + Pumpenmethode nimmt nun Richtung an
@@ -17,6 +17,7 @@
    1.1.2 : Transmission auf 1 + Anpassung an neuen Nema 23 Motor
    1.1.3 : Optimierungen am Sketch -> weniger benötigter SRAM & Flash
    1.1.4 : LedParty der Neopixel funktioniert
+   1.1.5 : Beispielcode für LED und einfacher Bedienung
 */
 
 
@@ -94,7 +95,6 @@ const uint8_t PIN_BUTTON_START = A0;
 const uint8_t PIN_BUTTON_WARMUP = A1;
 const uint8_t PIN_BUTTON_GAME = A3;
 const uint8_t PIN_SENSOR = A5;
-const uint8_t PIN_STATUS_LED = 2;
 const uint8_t PIN_NEOPIXEL = A4;
 
 
@@ -134,7 +134,6 @@ void setup() {
   pinMode(PIN_BUTTON_WARMUP, INPUT_PULLUP);
   pinMode(PIN_BUTTON_GAME, INPUT_PULLUP);
   pinMode(PIN_SENSOR, INPUT);
-  pinMode(PIN_STATUS_LED, OUTPUT);
 
 
   // Motorgeschwindigkeiten festlegen
@@ -363,7 +362,7 @@ void goIdle() {
   isGameModeActive = false;
   currentState = STATE_IDLE;
   currentLedState = HIGH;
-  digitalWrite(PIN_STATUS_LED, currentLedState);
+  //digitalWrite(PIN_STATUS_LED, currentLedState);
   stepsDone = 0;
 }
 
@@ -373,18 +372,18 @@ void goIdle() {
   Lässt die LED blinken. Achtung: sollte in jedem Clock-Cycle aufgerufen werden, da die Methode eine Clock benutzt zum berechnen des nächsten Blink-States
 */
 void blinkLed() {
-
-  // Static, sodass diese Funktion ihren State speichert -> Coroutine
-  static uint32_t ledStateMillis;
-
-  uint32_t curMillis = millis();
-
-  if (curMillis > ledStateMillis + LED_BLINK_TIME) {
-    currentLedState ^= 1; // XOR mit 1 => Toggle state
-    // Wechsel LED status
-    digitalWrite(PIN_STATUS_LED, currentLedState);
-    ledStateMillis = curMillis;
-  }
+//
+//  // Static, sodass diese Funktion ihren State speichert -> Coroutine
+//  static uint32_t ledStateMillis;
+//
+//  uint32_t curMillis = millis();
+//
+//  if (curMillis > ledStateMillis + LED_BLINK_TIME) {
+//    currentLedState ^= 1; // XOR mit 1 => Toggle state
+//    // Wechsel LED status
+//    digitalWrite(PIN_STATUS_LED, currentLedState);
+//    ledStateMillis = curMillis;
+//  }
 }
 
 
@@ -400,14 +399,23 @@ void activateGameMode() {
 /**
    Lässt die Ring-LED blinken für einen Effekt.
    Blockiert, bis Lichteffekte fertig.
-   3 Umdrehungen Farbe + dunkeldrehen + 3 mal blinken grün/rot
+   (3 Umdrehungen Farbe + dunkeldrehen + 3 mal blinken grün/rot)
 */
 void ledParty(bool willGlassFill) {
 
+  // Eine grüne Pixel Umdrehung
   colorCircle(0, 255, 0);
+
+  // Eine blaue Pixel Umdrehung
   colorCircle(0, 0, 255);
+
+  // Eine rote Pixel Umdrehung
   colorCircle(255, 0, 0);
+
+  // Eine farblose Pixel Umdrehung - (Um Pixel auszuschalten)
   colorCircle(0, 0, 0);
+
+  // Warte zwei Sekunden
   delay(2000);
 
   //
@@ -418,6 +426,7 @@ void ledParty(bool willGlassFill) {
     color = neopixel.Color(0, 255, 0);
   }
 
+  // Blinkt 3 mal die Neopixels mit der berechneten Farbe und openEnd (openEnd bedeutet, Farbe bleibt am Ende an)
   neopixelBlink(3, 200, 400, color, true);
 
 }
