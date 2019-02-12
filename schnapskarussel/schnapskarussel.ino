@@ -1,7 +1,7 @@
 /**
    Schnapskarussel
-   v1.1.5
-   10.02.2019 17.48
+   v1.1.6
+   12.02.2019 19:44
    1.0.1 : Bugfix, dass nach dem auffüllen frei gedreht wird
    1.0.2 : Unendlich warmup gefixt + Stepper step in eigene Methode
    1.0.3 : Unterstützung dritter Button for Cooldown + Cooldown code + Pumpenmethode nimmt nun Richtung an
@@ -18,6 +18,7 @@
    1.1.3 : Optimierungen am Sketch -> weniger benötigter SRAM & Flash
    1.1.4 : LedParty der Neopixel funktioniert
    1.1.5 : Beispielcode für LED und einfacher Bedienung
+   1.1.6 : NeoPixel schaltet nach Glas im Partymodus nun aus & ColorWipe Fix versuch #1
 */
 
 
@@ -161,8 +162,8 @@ void setup() {
 
 
   // Neopixel aktivieren
-  neopixel.begin();
   neopixel.setBrightness(NEOPIXEL_BRIGHTNESS);
+  neopixel.begin();
   neopixel.show(); // Alle ausschalten
 
   // Beginne mit idle state
@@ -236,6 +237,7 @@ void loop() {
 
         // GameMode code
         if (isGameModeActive) {
+          setAllPixel(0);
           // Erstellen eines zufalligen boolean
           bool fillGlass = (random(RANDOM_SIZE) == 0) ? true : false;
           ledParty(fillGlass);
@@ -359,10 +361,17 @@ inline bool isButtonPressed(uint8_t buttonPin) {
    Wechselt den State in den Idle State und setzt dabei das ganze System in den Idle
 */
 void goIdle() {
+
+  // Setze GameMode zurück
   isGameModeActive = false;
+  
   currentState = STATE_IDLE;
+
+  // Status LED dauer-an
   currentLedState = HIGH;
   //digitalWrite(PIN_STATUS_LED, currentLedState);
+
+  // Schritte zurücksetzen
   stepsDone = 0;
 }
 
@@ -440,6 +449,7 @@ void colorCircle(uint8_t red, uint8_t green, uint8_t blue) {
   for (uint8_t i = 0; i < NEOPIXEL_COUNT; i++) {
     neopixel.setPixelColor(i, red, green, blue);
     neopixel.show();
+    delay(50);
   }
 }
 
