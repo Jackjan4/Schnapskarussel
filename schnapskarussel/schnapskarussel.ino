@@ -1,7 +1,7 @@
 /**
    Schnapskarussel
-   v1.1.6
-   12.02.2019 19:44
+   v1.1.7
+   12.02.2019 20:17
    1.0.1 : Bugfix, dass nach dem auffüllen frei gedreht wird
    1.0.2 : Unendlich warmup gefixt + Stepper step in eigene Methode
    1.0.3 : Unterstützung dritter Button for Cooldown + Cooldown code + Pumpenmethode nimmt nun Richtung an
@@ -19,6 +19,7 @@
    1.1.4 : LedParty der Neopixel funktioniert
    1.1.5 : Beispielcode für LED und einfacher Bedienung
    1.1.6 : NeoPixel schaltet nach Glas im Partymodus nun aus & ColorWipe Fix versuch #1
+   1.1.7 : Fixes: activateGamemode wurde nicht gecalled & GLAS_STEP_OFFSET wurde nicht zur Umdrehung mitgezählt
 */
 
 
@@ -51,7 +52,7 @@ const uint8_t SPEED_PUMPE = 100;
 
 
 // Drehgeschwindigkeit des Steppers in RPM
-const uint8_t SPEED_STEPPER = 10;
+const uint8_t SPEED_STEPPER = 6;
 
 // Art der Steps: SINGLE, DOUBLE, INTERLEAVE, MICROSTEP
 const uint8_t STEPSTYLE = DOUBLE;
@@ -101,7 +102,7 @@ const uint8_t PIN_NEOPIXEL = 2;
 
 
 // Gibt die Größe des Zufallsbereich an, so größer die Zahl, desto unwahrscheinlicher ist es im GameMode, dass ein Glas befüllt wird =>    Wahrscheinlichkeit =  1 / (RANDOM_SIZE + 1)
-const uint8_t RANDOM_SIZE = 3;
+const uint8_t RANDOM_SIZE = 2;
 
 // Zeit in Millisekunden, wie schnell die LED blinkt
 const uint16_t LED_BLINK_TIME = 255;
@@ -188,7 +189,7 @@ void loop() {
         DEBUG_PRINTLN("IDLE -> INIT - Warmup-Button gedrückt");
       } else if (isButtonPressed(PIN_BUTTON_GAME)) {
         currentState = STATE_ROTATE_INIT;
-        isGameModeActive = true;
+        activateGameMode();
         DEBUG_PRINTLN("IDLE -> ROTATE - Game-Button gedrückt");
       }
       break;
@@ -226,12 +227,11 @@ void loop() {
       blinkLed();
       if (istGlasVorSensor()) {
 
-
         // evtl nötig, damit glas gerade unterm Schlauch
         if (GLAS_STEP_OFFSET > 0) {
-          stepper.step(GLAS_STEP_OFFSET, FORWARD, STEPSTYLE);
+          doRotateSteps(GLAS_STEP_OFFSET);
         } else if (GLAS_STEP_OFFSET < 0) {
-          stepper.step(-GLAS_STEP_OFFSET, BACKWARD, STEPSTYLE);
+          doRotateSteps(GLAS_STEP_OFFSET);
         }
 
 
@@ -318,6 +318,34 @@ void doRotateStep() {
 
 
 /**
+
+*/
+void doNegativeRotateStep() {
+  stepper.step(1, BACKWARD, STEPSTYLE);
+  stepsDone--;
+}
+
+
+
+/**
+  Macht einen Motorstep für die Rotation einer ganzen Umdrehung
+*/
+void doRotateSteps(uint8_t steps) {
+
+  if (steps > 0) {
+    for (uint8_t i = 0; i < steps; i++) {
+      doRotateStep();
+    }
+  } else if (steps < 0) {
+    for (uint8_t i = 0; i < -steps; i++) {
+      doNegativeRotateStep();
+    }
+  }
+}
+
+
+
+/**
    Gibt true zurück, wenn Glas vor dem Sensor steht
    Ansonsten false
 */
@@ -364,7 +392,7 @@ void goIdle() {
 
   // Setze GameMode zurück
   isGameModeActive = false;
-  
+
   currentState = STATE_IDLE;
 
   // Status LED dauer-an
@@ -381,18 +409,18 @@ void goIdle() {
   Lässt die LED blinken. Achtung: sollte in jedem Clock-Cycle aufgerufen werden, da die Methode eine Clock benutzt zum berechnen des nächsten Blink-States
 */
 void blinkLed() {
-//
-//  // Static, sodass diese Funktion ihren State speichert -> Coroutine
-//  static uint32_t ledStateMillis;
-//
-//  uint32_t curMillis = millis();
-//
-//  if (curMillis > ledStateMillis + LED_BLINK_TIME) {
-//    currentLedState ^= 1; // XOR mit 1 => Toggle state
-//    // Wechsel LED status
-//    digitalWrite(PIN_STATUS_LED, currentLedState);
-//    ledStateMillis = curMillis;
-//  }
+  //
+  //  // Static, sodass diese Funktion ihren State speichert -> Coroutine
+  //  static uint32_t ledStateMillis;
+  //
+  //  uint32_t curMillis = millis();
+  //
+  //  if (curMillis > ledStateMillis + LED_BLINK_TIME) {
+  //    currentLedState ^= 1; // XOR mit 1 => Toggle state
+  //    // Wechsel LED status
+  //    digitalWrite(PIN_STATUS_LED, currentLedState);
+  //    ledStateMillis = curMillis;
+  //  }
 }
 
 
