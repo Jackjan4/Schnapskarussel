@@ -96,7 +96,7 @@ const uint8_t PIN_BUTTON_START = A0;
 const uint8_t PIN_BUTTON_WARMUP = A1;
 const uint8_t PIN_BUTTON_GAME = A3;
 const uint8_t PIN_SENSOR = A5;
-const uint8_t PIN_NEOPIXEL = A4;
+const uint8_t PIN_NEOPIXEL = 2;
 
 
 
