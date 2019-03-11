@@ -527,6 +527,7 @@ void setAllPixel(uint8_t red, uint8_t green, uint8_t blue) {
 
 
 void rainbowFade() {
+  static uint8_t i = 0;
   static uint16_t fadeTime = 50;
   static uint32_t lastMillis = 0;
 
@@ -535,9 +536,29 @@ void rainbowFade() {
   if (curMillis > lastMillis + fadeTime) {
 
     // rainbow code here
+    setAllPixel(Wheel(i++));
+
+    if (i > 255) {
+      i = 0;
+    }
 
     // update last time
     lastMillis = curMillis;
   }
   
+}
+
+// Input a value 0 to 255 to get a color value.
+// The colours are a transition r - g - b - back to r.
+uint32_t Wheel(uint8_t WheelPos) {
+  WheelPos = 255 - WheelPos;
+  if(WheelPos < 85) {
+    return neopixel.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  }
+  if(WheelPos < 170) {
+    WheelPos -= 85;
+    return neopixel.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+  WheelPos -= 170;
+  return neopixel.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
 }
