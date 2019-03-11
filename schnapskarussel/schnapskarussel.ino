@@ -48,7 +48,7 @@
 
 
 // Pumpgeschweindigkeit der Wasserpumpe -> Max 255
-const uint8_t SPEED_PUMPE = 100;
+const uint8_t SPEED_PUMPE = 255;
 
 
 // Drehgeschwindigkeit des Steppers in RPM
@@ -58,16 +58,16 @@ const uint8_t SPEED_STEPPER = 6;
 const uint8_t STEPSTYLE = DOUBLE;
 
 // Wartezeit zum abtropfen, bevor weitergedreht wird, in Millisekunden
-const uint8_t FILL_WAITTIME = 100;
+const uint16_t FILL_WAITTIME = 800;
 
 // Zeit die gewartet werden soll, um den Teller am Ende der Umdrehung zu beruhigen, in Millisekunden
 const uint16_t PUMPE_BREAKTIME = 400;
 
 // Zeit in Millisekunden, wielange die Pumpe zum befüllen laufen soll
-const uint16_t FILLTIME = 200;
+const uint16_t FILLTIME = 1300;
 
 // Zeit in Millisekunden, wielange die Pumpe sich volllaufen soll
-const uint16_t WARMUPTIME = 2000;
+const uint16_t WARMUPTIME = 1700;
 
 
 // ======== ZUSTÄNDE =========
@@ -81,7 +81,7 @@ uint8_t currentState;
 
 
 // Schritte die noch gemacht werden sollen, damit Glas korrekt unterm Schlauch steht
-const int8_t GLAS_STEP_OFFSET = 5;
+const int8_t GLAS_STEP_OFFSET = 14;
 
 // Übersetzung vom Motor auf das Drehkarussel
 const float TRANSMISSION = 1.0;
@@ -192,6 +192,8 @@ void loop() {
         activateGameMode();
         DEBUG_PRINTLN("IDLE -> ROTATE - Game-Button gedrückt");
       }
+
+      rainbowFade();
       break;
 
 
@@ -511,4 +513,31 @@ void setAllPixel(uint32_t color) {
     neopixel.setPixelColor(i, color);
   }
   neopixel.show();
+}
+
+
+
+/**
+   Setzt alle Neopixel auf die gegebene Farbe
+*/
+void setAllPixel(uint8_t red, uint8_t green, uint8_t blue) {
+  setAllPixel(neopixel.Color(red, green, blue));
+}
+
+
+
+void rainbowFade() {
+  static uint16_t fadeTime = 50;
+  static uint32_t lastMillis = 0;
+
+  uint32_t curMillis = millis();
+
+  if (curMillis > lastMillis + fadeTime) {
+
+    // rainbow code here
+
+    // update last time
+    lastMillis = curMillis;
+  }
+  
 }
