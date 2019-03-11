@@ -1,6 +1,6 @@
 /**
    Schnapskarussel
-   v1.1.7
+   v1.1.8
    12.02.2019 20:17
    1.0.1 : Bugfix, dass nach dem auffüllen frei gedreht wird
    1.0.2 : Unendlich warmup gefixt + Stepper step in eigene Methode
@@ -20,6 +20,7 @@
    1.1.5 : Beispielcode für LED und einfacher Bedienung
    1.1.6 : NeoPixel schaltet nach Glas im Partymodus nun aus & ColorWipe Fix versuch #1
    1.1.7 : Fixes: activateGamemode wurde nicht gecalled & GLAS_STEP_OFFSET wurde nicht zur Umdrehung mitgezählt
+   1.1.8 : rainbowFade hinzugefügt & FILL_WAITTIME kann nun auch größer als 255 millis sein
 */
 
 
