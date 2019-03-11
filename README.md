@@ -1,5 +1,5 @@
 #  Schnapskarussel
-Derzeitige Version: v1.1.4
+Derzeitige Version: v1.1.8
 
 
 
