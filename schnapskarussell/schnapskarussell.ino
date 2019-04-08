@@ -1,7 +1,7 @@
 /**
    Schnapskarussel
-   v1.1.9
-   15.03.2019 20:17
+   v1.2.0
+   08.04.2019 16:26
    1.0.1 : Bugfix, dass nach dem auffüllen frei gedreht wird
    1.0.2 : Unendlich warmup gefixt + Stepper step in eigene Methode
    1.0.3 : Unterstützung dritter Button for Cooldown + Cooldown code + Pumpenmethode nimmt nun Richtung an
@@ -22,6 +22,7 @@
    1.1.7 : Fixes: activateGamemode wurde nicht gecalled & GLAS_STEP_OFFSET wurde nicht zur Umdrehung mitgezählt
    1.1.8 : rainbowFade hinzugefügt & FILL_WAITTIME kann nun auch größer als 255 millis sein
    1.1.9 : softDelay(...) eingefügt; blinkLed(...) geändert
+   1.2.0 : Methoden kommentiert und Namensgebung angepasst
 */
 
 
@@ -210,11 +211,13 @@ void loop() {
       if (isGameModeActive) {
         runPumpe(FILLTIME, FORWARD);
       } else {
-        runPumpe(FILLTIME, FORWARD, blinkLed);
+
+        // Beim Befüllen ohne Gamemode soll weitergefaded werden (fadeLed() benötigt kontinuierliche Aufrufe)
+        runPumpe(FILLTIME, FORWARD, fadeLed);
       }
 
       // Kurz warten zum abtropfen, trotzdem weiterhin Led-Pulse ausführen
-      softDelay(FILL_WAITTIME, blinkLed);
+      softDelay(FILL_WAITTIME, fadeLed);
 
       // Nach dem befüllen freidrehen
       while (istGlasVorSensor()) {
@@ -233,8 +236,9 @@ void loop() {
     // Code während rotieren
     case STATE_ROTATE:
 
+      // Beim Rotieren ohne Gamemode soll weitergefaded werden (fadeLed() benötigt kontinuierliche Aufrufe)
       if (!isGameModeActive) {
-        blinkLed();
+        fadeLed();
       }
 
       if (istGlasVorSensor()) {
@@ -334,7 +338,7 @@ void doRotateStep() {
 
 
 /**
-
+  Macht einen negativen Motorstep für die Rotation einer ganzen Umdrehung und zieht diesen Schritt wieder ab
 */
 void doNegativeRotateStep() {
   stepper.step(1, BACKWARD, STEPSTYLE);
@@ -392,6 +396,7 @@ void runPumpe(uint16_t mill, uint8_t direction) {
 
 /**
    Betreibt die Pumpe für die angegebenen Millisekunden
+   Lässt zu, dass bei diesem Delay eine Funktion gecalled wird
 */
 void runPumpe(uint16_t mill, uint8_t direction, void (*func)()) {
 
@@ -412,7 +417,7 @@ void runPumpe(uint16_t mill, uint8_t direction, void (*func)()) {
 
 
 /**
-  Gibt true zurück, wenn der angegebene Button (angeschlossen an dem Pin) gedrückt ist
+  Gibt true zurück, wenn der angegebene Button (angeschlossen an dem Pin (mit Pullup)) gedrückt ist
 */
 inline bool isButtonPressed(uint8_t buttonPin) {
   return (digitalRead(buttonPin) == LOW) ? true : false;
@@ -442,9 +447,10 @@ void goIdle() {
 
 
 /**
-  Lässt die LED blinken. Achtung: sollte in jedem Clock-Cycle aufgerufen werden, da die Methode eine Clock benutzt zum berechnen des nächsten Blink-States
+  Lässt die Neopixel-LEDs in zufälligen Farben sehr langsam alle gemeinsam faden.
+  Achtung: sollte in jedem Clock-Cycle aufgerufen werden, da die Methode eine Clock benutzt zum berechnen des nächsten Blink-States
 */
-void blinkLed() {
+void fadeLed() {
 
   // Delaytime in millis
   static uint16_t delayTime = 10;
@@ -606,7 +612,8 @@ void setAllPixel(uint8_t red, uint8_t green, uint8_t blue) {
 
 
 /**
-
+  Macht einen Rainbow-Fade mit allen Neopixel-LEDs gleichzeitig.
+  fadeTime kann in der Methode angepasst werden
 */
 void rainbowFade() {
   static uint8_t i = 0;
@@ -629,8 +636,11 @@ void rainbowFade() {
 
 }
 
-// Input a value 0 to 255 to get a color value.
-// The colours are a transition r - g - b - back to r.
+
+
+/** Input a value 0 to 255 to get a color value.
+    The colours are a transition r - g - b - back to r.
+*/
 uint32_t Wheel(uint8_t WheelPos) {
   WheelPos = 255 - WheelPos;
   if (WheelPos < 85) {
