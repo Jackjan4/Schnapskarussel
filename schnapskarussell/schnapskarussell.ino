@@ -112,6 +112,7 @@ uint8_t currentLedState;
 
 // Motor initialisieren
 AF_DCMotor pumpe(1); // M1
+AF_DCMotor ventil(2, MOTOR12_64KHZ); // M2
 AF_Stepper stepper(FULL_ROTATE_STEPS, 2); // M3 & M4
 
 
@@ -141,6 +142,8 @@ void setup() {
   // Motorgeschwindigkeiten festlegen
   pumpe.setSpeed(SPEED_PUMPE);
   stepper.setSpeed(SPEED_STEPPER);
+  ventil.setSpeed(255);
+  
 
 
   // Berechne benötigte Steps
@@ -382,6 +385,7 @@ void runPumpe(uint16_t mill, uint8_t direction) {
 
   unsigned long start = millis();
 
+  ventil.run(FORWARD);
   pumpe.run(direction);
 
   // Solange blocken, bis Zeit fertig
@@ -390,6 +394,7 @@ void runPumpe(uint16_t mill, uint8_t direction) {
 
   // Pumpe releasen
   pumpe.run(RELEASE);
+  ventil.run(RELEASE);
 }
 
 
