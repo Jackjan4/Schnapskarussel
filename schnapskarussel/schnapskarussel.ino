@@ -1,7 +1,7 @@
 /**
    Schnapskarussel
-   v1.1.8
-   12.02.2019 20:17
+   v1.1.9
+   15.03.2019 20:17
    1.0.1 : Bugfix, dass nach dem auffüllen frei gedreht wird
    1.0.2 : Unendlich warmup gefixt + Stepper step in eigene Methode
    1.0.3 : Unterstützung dritter Button for Cooldown + Cooldown code + Pumpenmethode nimmt nun Richtung an
@@ -21,6 +21,7 @@
    1.1.6 : NeoPixel schaltet nach Glas im Partymodus nun aus & ColorWipe Fix versuch #1
    1.1.7 : Fixes: activateGamemode wurde nicht gecalled & GLAS_STEP_OFFSET wurde nicht zur Umdrehung mitgezählt
    1.1.8 : rainbowFade hinzugefügt & FILL_WAITTIME kann nun auch größer als 255 millis sein
+   1.1.9 : softDelay(...) eingefügt; blinkLed(...) geändert
 */
 
 
@@ -53,16 +54,13 @@ const uint8_t SPEED_PUMPE = 255;
 
 
 // Drehgeschwindigkeit des Steppers in RPM
-const uint8_t SPEED_STEPPER = 6;
+const uint8_t SPEED_STEPPER = 8;
 
 // Art der Steps: SINGLE, DOUBLE, INTERLEAVE, MICROSTEP
 const uint8_t STEPSTYLE = DOUBLE;
 
 // Wartezeit zum abtropfen, bevor weitergedreht wird, in Millisekunden
 const uint16_t FILL_WAITTIME = 800;
-
-// Zeit die gewartet werden soll, um den Teller am Ende der Umdrehung zu beruhigen, in Millisekunden
-const uint16_t PUMPE_BREAKTIME = 400;
 
 // Zeit in Millisekunden, wielange die Pumpe zum befüllen laufen soll
 const uint16_t FILLTIME = 1300;
@@ -194,6 +192,10 @@ void loop() {
         DEBUG_PRINTLN("IDLE -> ROTATE - Game-Button gedrückt");
       }
 
+      // Während idle immer seeden
+      randomSeed(millis());
+
+      //
       rainbowFade();
       break;
 
@@ -205,11 +207,14 @@ void loop() {
     case STATE_FILL:
 
       // Befüllen
-      blinkLed();
-      runPumpe(FILLTIME, FORWARD);
+      if (isGameModeActive) {
+        runPumpe(FILLTIME, FORWARD);
+      } else {
+        runPumpe(FILLTIME, FORWARD, blinkLed);
+      }
 
-      // Kurz warten zum abtropfen
-      delay(FILL_WAITTIME);
+      // Kurz warten zum abtropfen, trotzdem weiterhin Led-Pulse ausführen
+      softDelay(FILL_WAITTIME, blinkLed);
 
       // Nach dem befüllen freidrehen
       while (istGlasVorSensor()) {
@@ -227,7 +232,11 @@ void loop() {
 
     // Code während rotieren
     case STATE_ROTATE:
-      blinkLed();
+
+      if (!isGameModeActive) {
+        blinkLed();
+      }
+
       if (istGlasVorSensor()) {
 
         // evtl nötig, damit glas gerade unterm Schlauch
@@ -259,8 +268,14 @@ void loop() {
       if (stepsDone >= neededSteps) {
 
         DEBUG_PRINTLN("ROTATE -> IDLE - Fertig");
-        // Umdrehung fertig, bremsen und dann Stepper release, um unnötigen Stromverbrauch & Hitzeentwicklung zu vermeiden
-        delay(PUMPE_BREAKTIME);
+
+        // Umdrehung fertig
+        // Mithilfe von Grün blinken anzeigen, dass Prozess fertig (zusätzlich beruhigt diese Zeit die Platte)
+        setAllPixel(0, 0, 0);
+        delay(500);
+        neopixelBlink(3, 200, 400, 65280, false);
+
+        // Stepper loslassen wegen Hitze und Energie
         stepper.release();
         // State wechseln zu IDLE
         goIdle();
@@ -279,7 +294,6 @@ void loop() {
 
     // Code während Warmup
     case STATE_WARMUP:
-      blinkLed();
       runPumpe(WARMUPTIME, FORWARD);
 
       // State wechseln zu IDLE
@@ -294,7 +308,6 @@ void loop() {
 
     // Code während Rotate_init zum Freidrehen des Tellers
     case STATE_ROTATE_INIT:
-      blinkLed();
       if (istGlasVorSensor()) {
         stepper.step(1, FORWARD, STEPSTYLE);
       } else {
@@ -366,14 +379,34 @@ void runPumpe(uint16_t mill, uint8_t direction) {
   unsigned long start = millis();
 
   pumpe.run(direction);
-  while (millis() < start + mill) {
 
-    // Da Methode blocking ist, LED blinken aufrufen, damit diese weitermacht
-    blinkLed();
+  // Solange blocken, bis Zeit fertig
+  while (millis() < start + mill) {
   }
+
+  // Pumpe releasen
   pumpe.run(RELEASE);
 }
 
+
+
+/**
+   Betreibt die Pumpe für die angegebenen Millisekunden
+*/
+void runPumpe(uint16_t mill, uint8_t direction, void (*func)()) {
+
+  unsigned long start = millis();
+
+  pumpe.run(direction);
+
+  // Solange blocken, bis Zeit fertig
+  while (millis() < start + mill) {
+    func();
+  }
+
+  // Pumpe releasen
+  pumpe.run(RELEASE);
+}
 
 
 
@@ -412,18 +445,64 @@ void goIdle() {
   Lässt die LED blinken. Achtung: sollte in jedem Clock-Cycle aufgerufen werden, da die Methode eine Clock benutzt zum berechnen des nächsten Blink-States
 */
 void blinkLed() {
-  //
-  //  // Static, sodass diese Funktion ihren State speichert -> Coroutine
-  //  static uint32_t ledStateMillis;
-  //
-  //  uint32_t curMillis = millis();
-  //
-  //  if (curMillis > ledStateMillis + LED_BLINK_TIME) {
-  //    currentLedState ^= 1; // XOR mit 1 => Toggle state
-  //    // Wechsel LED status
-  //    digitalWrite(PIN_STATUS_LED, currentLedState);
-  //    ledStateMillis = curMillis;
-  //  }
+
+  // Delaytime in millis
+  static uint16_t delayTime = 10;
+  static uint32_t lastTime = 0;
+  static int16_t i = 0;
+  static uint8_t direction = FORWARD;
+  static uint8_t color = random(0, 7);
+
+  if (lastTime + delayTime < millis()) {
+    switch (color) {
+      // Rot
+      case 0:
+        setAllPixel(i, 0, 0);
+        break;
+      // Grün
+      case 1:
+        setAllPixel(0, i, 0);
+        break;
+      // Blau
+      case 2:
+        setAllPixel(0, 0, i);
+        break;
+      // Gelb
+      case 3:
+        setAllPixel(i, i, 0);
+        break;
+      // Weiß
+      case 4:
+        setAllPixel(i, i, i);
+        break;
+      // Lila
+      case 5:
+        setAllPixel(i, 0, i);
+        break;
+      // Cyan
+      case 6:
+        setAllPixel(0, i, i);
+        break;
+    }
+
+    if (direction == FORWARD) {
+      i += 3;
+    } else {
+      i -= 3;
+    }
+
+
+    if (i >= 256) {
+      i = 255;
+      direction = BACKWARD;
+    } else if (i < 0) {
+      i = 0;
+      direction = FORWARD;
+      color = random(0, 7);
+    }
+
+    lastTime = millis();
+  }
 }
 
 
@@ -432,7 +511,6 @@ void blinkLed() {
 */
 void activateGameMode() {
   isGameModeActive = true;
-  randomSeed(millis());
 }
 
 
@@ -527,13 +605,15 @@ void setAllPixel(uint8_t red, uint8_t green, uint8_t blue) {
 
 
 
+/**
+
+*/
 void rainbowFade() {
   static uint8_t i = 0;
-  static uint16_t fadeTime = 50;
+  static uint16_t fadeTime = 2000;
   static uint32_t lastMillis = 0;
 
   uint32_t curMillis = millis();
-
   if (curMillis > lastMillis + fadeTime) {
 
     // rainbow code here
@@ -546,20 +626,35 @@ void rainbowFade() {
     // update last time
     lastMillis = curMillis;
   }
-  
+
 }
 
 // Input a value 0 to 255 to get a color value.
 // The colours are a transition r - g - b - back to r.
 uint32_t Wheel(uint8_t WheelPos) {
   WheelPos = 255 - WheelPos;
-  if(WheelPos < 85) {
+  if (WheelPos < 85) {
     return neopixel.Color(255 - WheelPos * 3, 0, WheelPos * 3);
   }
-  if(WheelPos < 170) {
+  if (WheelPos < 170) {
     WheelPos -= 85;
     return neopixel.Color(0, WheelPos * 3, 255 - WheelPos * 3);
   }
   WheelPos -= 170;
   return neopixel.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+}
+
+
+
+/**
+   Delayt die gegebene Anzahl an Millisekunden, exakt genauso wie delay(...), lässt jedoch während des delays code-ausführung zu
+*/
+void softDelay(uint32_t ms, void (*func)()) {
+  uint32_t start = millis();
+
+  while (start + ms > millis()) {
+
+    // Led fade während des delays
+    func();
+  }
 }
